@@ -11,9 +11,6 @@ a.out
 # Testes
 *.got.ast
 
-### VisualStudioCode ###
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+
+# Ignore .vscode directory
+.vscode/
