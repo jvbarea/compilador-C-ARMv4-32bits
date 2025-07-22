@@ -1,0 +1,35 @@
+(BLOCK
+  (FUNC main
+    (DECL x
+      (NUM 2)
+    )
+    (FOR
+      (DECL i
+        (NUM 0)
+      )
+      (LT
+        (VAR i)
+        (NUM 5)
+      )
+      (ASSIGN
+        (VAR i)
+        (ADD
+          (VAR i)
+          (NUM 1)
+        )
+      )
+      (BLOCK
+        (ASSIGN
+          (VAR x)
+          (MUL
+            (VAR x)
+            (NUM 2)
+          )
+        )
+      )
+    )
+    (RETURN
+      (VAR x)
+    )
+  )
+)

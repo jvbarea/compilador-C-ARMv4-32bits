@@ -1,0 +1,23 @@
+(BLOCK
+  (FUNC add
+    (VAR a)
+    (VAR b)
+    (RETURN
+      (ADD
+        (VAR a)
+        (VAR b)
+      )
+    )
+  )
+  (FUNC main
+    (DECL x
+      (CALL add
+        (NUM 2)
+        (NUM 3)
+      )
+    )
+    (RETURN
+      (VAR x)
+    )
+  )
+)

@@ -1,0 +1,50 @@
+(BLOCK
+  (DECL x
+  )
+  (DECL y
+    (NUM 123)
+  )
+  (FUNC add
+    (VAR a)
+    (VAR b)
+    (RETURN
+      (ADD
+        (VAR a)
+        (VAR b)
+      )
+    )
+  )
+  (FUNC main
+    (ASSIGN
+      (VAR x)
+      (NUM 2)
+    )
+    (FOR
+      (DECL i
+        (NUM 0)
+      )
+      (LT
+        (VAR i)
+        (NUM 5)
+      )
+      (POSTINC
+        (VAR i)
+      )
+      (BLOCK
+        (ASSIGN
+          (VAR x)
+          (MUL
+            (VAR x)
+            (NUM 2)
+          )
+        )
+      )
+    )
+    (RETURN
+      (CALL add
+        (VAR x)
+        (VAR y)
+      )
+    )
+  )
+)

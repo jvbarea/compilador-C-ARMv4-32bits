@@ -7,3 +7,13 @@ a.out
 # Object files
 *.o
 *.obj
+
+# Testes
+*.got.ast
+
+### VisualStudioCode ###
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json

@@ -105,6 +105,8 @@ static Token *tokenize_buffer(const char *p) {
         if (p[0]=='>'&&p[1]=='=') { EMIT(TK_GE,p,2); p+=2; continue; }
         if (p[0]=='&'&&p[1]=='&') { EMIT(TK_AND,p,2); p+=2; continue; }
         if (p[0]=='|'&&p[1]=='|') { EMIT(TK_OR,p,2); p+=2; continue; }
+        if (p[0]=='+' && p[1]=='+') { EMIT(TK_INC, p, 2); p+=2; continue; }
+        if (p[0]=='-' && p[1]=='-') { EMIT(TK_DEC, p, 2); p+=2; continue; }
         TokenKind sk;
         switch (*p) {
             case '+': sk = TK_SYM_PLUS;   break;
