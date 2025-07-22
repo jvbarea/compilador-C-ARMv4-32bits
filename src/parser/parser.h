@@ -43,6 +43,7 @@ typedef enum {
 // AST Node structure
 typedef struct Node {
     NodeKind kind;
+    Token *token;
     struct Node *lhs;         // left-hand side or condition
     struct Node *rhs;         // right-hand side or then-branch
     struct Node *els;         // else-branch

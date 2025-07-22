@@ -43,37 +43,43 @@ static Token *expect(TokenKind kind) {
 }
 
 // AST node constructors
-static Node *new_node(NodeKind kind) {
+// AST node constructors (recebem Token *tok para localização)
+static Node *new_node(Token *tok, NodeKind kind) {
     Node *node = calloc(1, sizeof(Node));
-    node->kind = kind;
+    node->kind  = kind;
+    node->token = tok;
     return node;
-}
-static Node *new_node_binary(NodeKind kind, Node *lhs, Node *rhs) {
-    Node *node = new_node(kind);
-    node->lhs = lhs;
-    node->rhs = rhs;
-    return node;
-}
-static Node *new_node_unary(NodeKind kind, Node *expr) {
-    Node *n = new_node(kind);
-    n->lhs = expr;
-    return n;
 }
 
-static Node *new_node_num(long val) {
-    Node *node = new_node(ND_NUM);
-    node->val = val;
+static Node *new_node_binary(Token *tok, NodeKind kind, Node *lhs, Node *rhs) {
+    Node *node = new_node(tok, kind);
+    node->lhs  = lhs;
+    node->rhs  = rhs;
     return node;
 }
-static Node *new_node_var(const char *name) {
-    Node *node = new_node(ND_VAR);
-    node->name = copy_str(name);
+
+static Node *new_node_unary(Token *tok, NodeKind kind, Node *expr) {
+    Node *node = new_node(tok, kind);
+    node->lhs  = expr;
     return node;
 }
-static Node *new_node_call(const char *name, Node **args, int argc) {
-    Node *node = new_node(ND_CALL);
-    node->name = copy_str(name);
-    node->args = args;
+
+static Node *new_node_num(Token *tok) {
+    Node *node = new_node(tok, ND_NUM);
+    node->val  = tok->ival;
+    return node;
+}
+
+static Node *new_node_var(Token *tok) {
+    Node *node = new_node(tok, ND_VAR);
+    node->name = copy_str(tok->lexeme);
+    return node;
+}
+
+static Node *new_node_call(Token *tok, const char *name, Node **args, int argc) {
+    Node *node = new_node(tok, ND_CALL);
+    node->name      = copy_str(name);
+    node->args      = args;
     node->arg_count = argc;
     return node;
 }
@@ -97,23 +103,33 @@ static Node *parse_function_decl(void);
 
 // Primary expressions: numbers, identifiers, calls, parentheses
 static Node *parse_primary(void) {
+    // ( expr )
     if (consume(TK_SYM_LPAREN)) {
         Node *node = parse_expression();
         expect(TK_SYM_RPAREN);
         return node;
     }
+
+    // literal numérico
     if (cur->kind == TK_NUM) {
-        Node *node = new_node_num(cur->ival);
+        Token *tok = cur;
+        // long   v   = tok->ival;
         next();
+        Node *node = new_node_num(tok);  // sua factory antiga
+        node->token = tok;             // só aqui guardamos a localização
         return node;
     }
+
+    // identificador ou chamada de função
     if (cur->kind == TK_IDENT) {
-        const char *name = cur->lexeme;
+        Token *tok  = cur;
+        char  *name = copy_str(tok->lexeme);
         next();
-        // function call?
+
+        // chamada de função?
         if (consume(TK_SYM_LPAREN)) {
             Node **args = NULL;
-            int argc = 0;
+            int    argc = 0;
             if (!consume(TK_SYM_RPAREN)) {
                 do {
                     Node *arg = parse_expression();
@@ -122,33 +138,60 @@ static Node *parse_primary(void) {
                 } while (consume(TK_SYM_COMMA));
                 expect(TK_SYM_RPAREN);
             }
-            return new_node_call(name, args, argc);
+            Node *call = new_node_call(tok ,name, args, argc);
+            call->token = tok;
+            return call;
         }
-        return new_node_var(name);
+
+        // simples uso de variável
+        Node *var = new_node_var(tok);
+        var->token = tok;
+        return var;
     }
+
     error_at(cur, "expected primary expression");
     return NULL;
 }
 
+
 static Node *parse_postfix(void) {
     Node *n = parse_primary();
     for (;;) {
-        if (consume(TK_INC))
-            n = new_node_unary(ND_POSTINC, n);
-        else if (consume(TK_DEC))
-            n = new_node_unary(ND_POSTDEC, n);
-        else
-            break;
+        // pós-incremento
+        if (peek(0)->kind == TK_INC) {
+            Token *tok = next();  // consome '++' e guarda o token
+            n = new_node_unary(tok, ND_POSTINC, n);
+            continue;
+        }
+        // pós-decremento
+        if (peek(0)->kind == TK_DEC) {
+            Token *tok = next();  // consome '--' e guarda o token
+            n = new_node_unary(tok, ND_POSTDEC, n);
+            continue;
+        }
+        break;
     }
     return n;
 }
 
+
 // Unary: +, -, !, then primary
 static Node *parse_unary(void) {
-    if (consume(TK_SYM_PLUS))
+    // +expr  => just skip '+'
+    if (peek(0)->kind == TK_SYM_PLUS) {
+        next();  // consome '+'
         return parse_unary();
-    if (consume(TK_SYM_MINUS))
-        return new_node_binary(ND_SUB, new_node_num(0), parse_unary());
+    }
+    // -expr  => 0 - expr
+    if (peek(0)->kind == TK_SYM_MINUS) {
+        Token *tok = next();  // consome '-'
+        // cria literal zero usando o mesmo token (linha/col do '-')
+        Node *zero = new_node_num(tok);
+        zero->val = 0;
+        // constroi subtração 0 - parse_unary()
+        return new_node_binary(tok, ND_SUB, zero, parse_unary());
+    }
+    // caso geral
     return parse_postfix();
 }
 
@@ -156,85 +199,142 @@ static Node *parse_unary(void) {
 static Node *parse_multiplicative(void) {
     Node *node = parse_unary();
     for (;;) {
-        if (consume(TK_SYM_STAR))
-            node = new_node_binary(ND_MUL, node, parse_unary());
-        else if (consume(TK_SYM_SLASH))
-            node = new_node_binary(ND_DIV, node, parse_unary());
-        else
-            break;
+        // *
+        if (peek(0)->kind == TK_SYM_STAR) {
+            Token *tok = next();  // consome '*'
+            node = new_node_binary(tok, ND_MUL, node, parse_unary());
+            continue;
+        }
+        // /
+        if (peek(0)->kind == TK_SYM_SLASH) {
+            Token *tok = next();  // consome '/'
+            node = new_node_binary(tok, ND_DIV, node, parse_unary());
+            continue;
+        }
+        break;
     }
     return node;
 }
+
 
 // Additive: +, -
 static Node *parse_additive(void) {
     Node *node = parse_multiplicative();
     for (;;) {
-        if (consume(TK_SYM_PLUS))
-            node = new_node_binary(ND_ADD, node, parse_multiplicative());
-        else if (consume(TK_SYM_MINUS))
-            node = new_node_binary(ND_SUB, node, parse_multiplicative());
-        else
-            break;
+        // +
+        if (peek(0)->kind == TK_SYM_PLUS) {
+            Token *tok = next();  // consome '+' e captura o token
+            node = new_node_binary(tok, ND_ADD, node, parse_multiplicative());
+            continue;
+        }
+        // -
+        if (peek(0)->kind == TK_SYM_MINUS) {
+            Token *tok = next();  // consome '-' e captura o token
+            node = new_node_binary(tok, ND_SUB, node, parse_multiplicative());
+            continue;
+        }
+        break;
     }
     return node;
 }
+
 
 // Relational: <, <=, >, >=
 static Node *parse_relational(void) {
     Node *node = parse_additive();
     for (;;) {
-        if      (consume(TK_SYM_LT))  // '<'
-            node = new_node_binary(ND_LT, node, parse_additive());
-        else if (consume(TK_LE))      // '<='
-            node = new_node_binary(ND_LE, node, parse_additive());
-        else if (consume(TK_SYM_GT))  // '>'
-            // a > b  é equivalente a  b < a
-            node = new_node_binary(ND_LT, parse_additive(), node);
-        else if (consume(TK_GE))      // '>='
-            // a >= b  é equivalente a  b <= a
-            node = new_node_binary(ND_LE, parse_additive(), node);
-        else
-            break;
+        // <
+        if (peek(0)->kind == TK_SYM_LT) {
+            Token *tok = next();  // consome '<'
+            node = new_node_binary(tok, ND_LT, node, parse_additive());
+            continue;
+        }
+        // <=
+        if (peek(0)->kind == TK_LE) {
+            Token *tok = next();  // consome '<='
+            node = new_node_binary(tok, ND_LE, node, parse_additive());
+            continue;
+        }
+        // >
+        if (peek(0)->kind == TK_SYM_GT) {
+            Token *tok = next();  // consome '>'
+            // transforma 'a > b' em 'b < a', reutilizando tok para localização
+            node = new_node_binary(tok, ND_LT, parse_additive(), node);
+            continue;
+        }
+        // >=
+        if (peek(0)->kind == TK_GE) {
+            Token *tok = next();  // consome '>='
+            // transforma 'a >= b' em 'b <= a'
+            node = new_node_binary(tok, ND_LE, parse_additive(), node);
+            continue;
+        }
+        break;
     }
     return node;
 }
+
 
 // Equality: ==, !=
 static Node *parse_equality(void) {
     Node *node = parse_relational();
     for (;;) {
-        if (consume(TK_EQ))
-            node = new_node_binary(ND_EQ, node, parse_relational());
-        else if (consume(TK_NEQ))
-            node = new_node_binary(ND_NE, node, parse_relational());
-        else
-            break;
+        // ==
+        if (peek(0)->kind == TK_EQ) {
+            Token *tok = next();  // consome '=='
+            node = new_node_binary(tok, ND_EQ, node, parse_relational());
+            continue;
+        }
+        // !=
+        if (peek(0)->kind == TK_NEQ) {
+            Token *tok = next();  // consome '!='
+            node = new_node_binary(tok, ND_NE, node, parse_relational());
+            continue;
+        }
+        break;
     }
     return node;
 }
 
+
 // Logical AND: &&
 static Node *parse_logical_and(void) {
     Node *node = parse_equality();
-    while (consume(TK_AND))
-        node = new_node_binary(ND_LOGAND, node, parse_equality());
+    for (;;) {
+        // &&
+        if (peek(0)->kind == TK_AND) {
+            Token *tok = next();  // consome '&&'
+            node = new_node_binary(tok, ND_LOGAND, node, parse_equality());
+            continue;
+        }
+        break;
+    }
     return node;
 }
 
 // Logical OR: ||
 static Node *parse_logical_or(void) {
     Node *node = parse_logical_and();
-    while (consume(TK_OR))
-        node = new_node_binary(ND_LOGOR, node, parse_logical_and());
+    for (;;) {
+        // ||
+        if (peek(0)->kind == TK_OR) {
+            Token *tok = next();  // consome '||'
+            node = new_node_binary(tok, ND_LOGOR, node, parse_logical_and());
+            continue;
+        }
+        break;
+    }
     return node;
 }
 
 // Assignment: = (right-associative)
 static Node *parse_assignment(void) {
     Node *node = parse_logical_or();
-    if (consume(TK_SYM_ASSIGN))
-        node = new_node_binary(ND_ASSIGN, node, parse_assignment());
+    // =
+    if (peek(0)->kind == TK_SYM_ASSIGN) {
+        Token *tok = next();  // consome '='
+        node = new_node_binary(tok, ND_ASSIGN, node, parse_assignment());
+    }
     return node;
 }
 
@@ -242,31 +342,33 @@ static Node *parse_assignment(void) {
 static Node *parse_expression(void) {
     return parse_assignment();
 }
-
-// Statement and other parsing functions (to be implemented)
 static Node *parse_statement(void) {
     // 1) bloco aninhado
     if (peek(0)->kind == TK_SYM_LBRACE)
         return parse_compound();
 
     // 2) return-stmt
-    if (consume(TK_KW_RETURN)) {
-        Node *n = new_node(ND_RETURN);
+    if (peek(0)->kind == TK_KW_RETURN) {
+        Token *tok = next();            // consome 'return'
+        Node *n = new_node(tok, ND_RETURN);
         n->lhs = parse_expression();
         expect(TK_SYM_SEMI);
         return n;
     }
 
     // 3) if-else
-    if (consume(TK_KW_IF)) {
+    if (peek(0)->kind == TK_KW_IF) {
+        Token *tok = next();            // consome 'if'
         expect(TK_SYM_LPAREN);
         Node *cond = parse_expression();
         expect(TK_SYM_RPAREN);
         Node *then_branch = parse_statement();
         Node *else_branch = NULL;
-        if (consume(TK_KW_ELSE))
+        if (peek(0)->kind == TK_KW_ELSE) {
+            next();                      // consome 'else'
             else_branch = parse_statement();
-        Node *n = new_node(ND_IF);
+        }
+        Node *n = new_node(tok, ND_IF);
         n->lhs = cond;
         n->rhs = then_branch;
         n->els = else_branch;
@@ -274,49 +376,58 @@ static Node *parse_statement(void) {
     }
 
     // 4) while
-    if (consume(TK_KW_WHILE)) {
+    if (peek(0)->kind == TK_KW_WHILE) {
+        Token *tok = next();            // consome 'while'
         expect(TK_SYM_LPAREN);
         Node *cond = parse_expression();
         expect(TK_SYM_RPAREN);
         Node *body = parse_statement();
-        Node *n = new_node(ND_WHILE);
+        Node *n = new_node(tok, ND_WHILE);
         n->lhs = cond;
         n->rhs = body;
         return n;
     }
 
     // 5) for
-    if (consume(TK_KW_FOR)) {
+    if (peek(0)->kind == TK_KW_FOR) {
+        Token *tok = next();            // consome 'for'
         expect(TK_SYM_LPAREN);
         // init
         Node *init = NULL;
-        if (!consume(TK_SYM_SEMI)) {
-            if (consume(TK_KW_INT)) {
-                Token *id = expect(TK_IDENT);
-                init = new_node(ND_DECL);
+        if (peek(0)->kind != TK_SYM_SEMI) {
+            if (peek(0)->kind == TK_KW_INT) {
+                // Token *idt = next();    // consome 'int'
+                next();    // consome 'int'
+                Token *id  = expect(TK_IDENT);
+                init = new_node(id, ND_DECL);
                 init->name = copy_str(id->lexeme);
-                if (consume(TK_SYM_ASSIGN))
+                if (peek(0)->kind == TK_SYM_ASSIGN) {
+                    next();
                     init->init = parse_expression();
+                }
             } else {
                 init = parse_expression();
             }
-            expect(TK_SYM_SEMI);
         }
+        expect(TK_SYM_SEMI);
+
         // cond
         Node *cond = NULL;
-        if (!consume(TK_SYM_SEMI)) {
+        if (peek(0)->kind != TK_SYM_SEMI) {
             cond = parse_expression();
-            expect(TK_SYM_SEMI);
         }
+        expect(TK_SYM_SEMI);
+
         // inc
         Node *inc = NULL;
-        if (!consume(TK_SYM_RPAREN)) {
+        if (peek(0)->kind != TK_SYM_RPAREN) {
             inc = parse_expression();
-            expect(TK_SYM_RPAREN);
         }
+        expect(TK_SYM_RPAREN);
+
         // body
         Node *body = parse_statement();
-        Node *n = new_node(ND_FOR);
+        Node *n = new_node(tok, ND_FOR);
         n->init = init;
         n->cond = cond;
         n->inc  = inc;
@@ -325,33 +436,35 @@ static Node *parse_statement(void) {
     }
 
     // 6) declaração local simples: int x; int y = expr;
-    // local declaration: int a=…[, b=…]*;
-    if (consume(TK_KW_INT)) {
+    if (peek(0)->kind == TK_KW_INT) {
+        Token *tok_int = next();        // consome 'int'
         Node **decls = NULL;
         int    cnt   = 0;
         do {
             Token *id = expect(TK_IDENT);
-            Node  *n  = new_node(ND_DECL);
+            Node  *n  = new_node(id, ND_DECL);
             n->name   = copy_str(id->lexeme);
-            if (consume(TK_SYM_ASSIGN))
+            if (peek(0)->kind == TK_SYM_ASSIGN) {
+                next();                  // consome '='
                 n->init = parse_expression();
-            decls = realloc(decls, sizeof(Node*) * (cnt+1));
+            }
+            decls = realloc(decls, sizeof(Node*) * (cnt + 1));
             decls[cnt++] = n;
-        } while (consume(TK_SYM_COMMA));
+        } while (peek(0)->kind == TK_SYM_COMMA && (next(), 1));
         expect(TK_SYM_SEMI);
+
         if (cnt == 1) {
             Node *only = decls[0];
             free(decls);
             return only;
         }
-        // se veio >1, embrulha num bloco
-        Node *blk = new_node(ND_BLOCK);
+        Node *blk = new_node(tok_int, ND_BLOCK);
         blk->stmts      = decls;
         blk->stmt_count = cnt;
         return blk;
     }
 
-    // 7) expressionstmt
+    // 7) expression-stmt
     {
         Node *expr = parse_expression();
         expect(TK_SYM_SEMI);
@@ -360,19 +473,22 @@ static Node *parse_statement(void) {
 }
 
 static Node *parse_compound(void) {
-    expect(TK_SYM_LBRACE);
-    Node *blk = new_node(ND_BLOCK);
+    // consome '{' e captura token para localização do bloco
+    Token *tok = expect(TK_SYM_LBRACE);
+
+    // cria nó de bloco com token do '{'
+    Node *blk = new_node(tok, ND_BLOCK);
     blk->stmts      = NULL;
     blk->stmt_count = 0;
 
-    while (!consume(TK_SYM_RBRACE)) {
+    // até encontrar '}'...
+    while (peek(0)->kind != TK_SYM_RBRACE) {
         Node *st = parse_statement();
 
-        // Se for um bloco criado por “int a=… , b=…;” (só ND_DECL dentro)
+        // achata blocos que vieram de declarações múltiplas
         if (st->kind == ND_BLOCK &&
             st->stmt_count > 0 &&
             st->stmts[0]->kind == ND_DECL) {
-            // achata: puxa cada declaração para o bloco pai
             for (int i = 0; i < st->stmt_count; i++) {
                 blk->stmts = realloc(
                     blk->stmts,
@@ -383,7 +499,7 @@ static Node *parse_compound(void) {
             free(st->stmts);
             free(st);
         } else {
-            // bloco normal ou qualquer outro statement
+            // bloco normal ou outro statement
             blk->stmts = realloc(
                 blk->stmts,
                 sizeof(Node*) * (blk->stmt_count + 1)
@@ -392,73 +508,109 @@ static Node *parse_compound(void) {
         }
     }
 
+    // consome '}' final
+    expect(TK_SYM_RBRACE);
     return blk;
 }
 
 static Node *parse_global_decl(void) {
+    // consome 'int' (token não usado para localização da declaração em si)
     expect(TK_KW_INT);
+
+    // nome da variável global
     Token *id = expect(TK_IDENT);
-    Node *n = new_node(ND_DECL);
+
+    // cria nó de declaração usando o token do identificador
+    Node *n = new_node(id, ND_DECL);
     n->name = copy_str(id->lexeme);
-    if (consume(TK_SYM_ASSIGN)) {
+
+    // inicializador opcional: = expr
+    if (peek(0)->kind == TK_SYM_ASSIGN) {
+        next();  // consome '='
         n->init = parse_expression();
     }
+
+    // ponto-e-vírgula final
     expect(TK_SYM_SEMI);
     return n;
 }
+
+// Função: parse_function_decl
+// Reconhece: int <name>( params ) { body }
 static Node *parse_function_decl(void) {
-    // assinatura: int <name>( params ) { body }
+    // 1) palavra-chave 'int'
+    // Token *tok_int = expect(TK_KW_INT);
     expect(TK_KW_INT);
+
+    // 2) nome da função
     Token *fn = expect(TK_IDENT);
+
+    // 3) parêntese de abertura
     expect(TK_SYM_LPAREN);
 
-    // parâmetros
+    // 4) parâmetros formais
     Node **params = NULL;
     int    pcount = 0;
-    if (!consume(TK_SYM_RPAREN)) {
+    if (peek(0)->kind != TK_SYM_RPAREN) {
         do {
+            // cada parâmetro começa com 'int'
             expect(TK_KW_INT);
+            // nome do parâmetro
             Token *pt = expect(TK_IDENT);
-            Node *p = new_node(ND_VAR);
+            // cria nó ND_VAR para o parâmetro, usando o token do identificador
+            Node *p = new_node(pt, ND_VAR);
             p->name = copy_str(pt->lexeme);
-            params = realloc(params, sizeof(Node*)*(pcount+1));
+
+            params = realloc(params, sizeof(Node*) * (pcount + 1));
             params[pcount++] = p;
         } while (consume(TK_SYM_COMMA));
-        expect(TK_SYM_RPAREN);
     }
+    // fecha a lista de parâmetros
+    expect(TK_SYM_RPAREN);
 
-    // corpo da função como bloco composto
-    Node *body = parse_compound();  // consome '{' ... '}', retorna ND_BLOCK
+    // 5) corpo da função (bloco composto)
+    Node *body = parse_compound();  // já consome '{' … '}' internamente
 
-    // monta o nó de função
-    Node *fnode = new_node(ND_FUNC);
+    // 6) monta o nó ND_FUNC, usando o token do identificador da função
+    Node *fnode = new_node(fn, ND_FUNC);
     fnode->name       = copy_str(fn->lexeme);
     fnode->args       = params;
     fnode->arg_count  = pcount;
-    // reaproveita diretamente os statements do bloco
+    // reaproveita statements do bloco interno
     fnode->stmts      = body->stmts;
     fnode->stmt_count = body->stmt_count;
     free(body);
+
     return fnode;
 }
 
-
 // Program: sequence of globals and functions
-Node *parse_program(Token *tok) {
-    cur = tok;
-    Node *root = new_node(ND_BLOCK);
-    root->stmts = NULL;
+Node *parse_program(Token *tok_stream) {
+    // inicializa stream de tokens
+    cur = tok_stream;
+
+    // cria nó bloco raiz usando o primeiro token para localização
+    Token *root_tok = peek(0);
+    Node *root = new_node(root_tok, ND_BLOCK);
+    root->stmts      = NULL;
     root->stmt_count = 0;
 
-    while (!consume(TK_EOF)) {
+    // enquanto não chegarmos ao EOF
+    while (peek(0)->kind != TK_EOF) {
         Node *node;
-        // Decide based on lookahead if it's a function or global
-        if (peek(2)->kind == TK_SYM_LPAREN)
+        // lookahead a 2 tokens: identificador seguido de '(' indica função
+        if (peek(0)->kind == TK_KW_INT &&
+            peek(1)->kind == TK_IDENT &&
+            peek(2)->kind == TK_SYM_LPAREN) {
             node = parse_function_decl();
-        else
+        } else {
             node = parse_global_decl();
-
-        root->stmts = realloc(root->stmts, sizeof(Node*) * (root->stmt_count + 1));
+        }
+        // adiciona ao bloco raiz
+        root->stmts = realloc(
+            root->stmts,
+            sizeof(Node*) * (root->stmt_count + 1)
+        );
         root->stmts[root->stmt_count++] = node;
     }
 
