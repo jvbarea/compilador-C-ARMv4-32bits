@@ -10,7 +10,7 @@ a.out
 
 # Testes
 *.got.ast
-
+*.got.err
 
 # Ignore .vscode directory
 .vscode/

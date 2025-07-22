@@ -3,6 +3,7 @@
 #include <string.h>
 #include "lexer/lexer.h"   // já declara read_file, tokenize, print_tokens, free_tokens
 #include "parser/parser.h" // declara parse_program, free_node, Node, etc.
+#include "sema/sema.h"     // sema_analyze, SemaContext
 
 // Imprime AST em formato prefixado
 static void print_ast(Node *n, int indent)
@@ -118,8 +119,7 @@ static void print_ast(Node *n, int indent)
         printf("(UNKNOWN %d)\n", n->kind);
     }
 
-    if (n->kind != ND_NUM && n->kind != ND_VAR)
-    {
+    if (n->kind != ND_NUM && n->kind != ND_VAR){
         for (int i = 0; i < indent; i++)
             putchar(' ');
         printf(")\n");
@@ -128,43 +128,72 @@ static void print_ast(Node *n, int indent)
 
 int main(int argc, char **argv)
 {
-    if (argc != 3 ||
-        (strcmp(argv[1], "-tokens") != 0 && strcmp(argv[1], "-ast") != 0))
-    {
-        fprintf(stderr, "Uso: %s [-tokens|-ast] <arquivo.c>\n", argv[0]);
+    /* opções */
+    int mode_tokens = 0, mode_ast = 0, mode_sema = 0;
+    char *path = NULL;
+
+    for (int i = 1; i < argc; i++){
+        if (!strcmp(argv[i], "-tokens"))
+            mode_tokens = 1;
+        else if (!strcmp(argv[i], "-ast"))
+            mode_ast = 1;
+        else if (!strcmp(argv[i], "-sema"))
+            mode_sema = 1;
+        else
+            path = argv[i];
+    }
+    if (!path || (mode_tokens + mode_ast + mode_sema) > 1){
+        fprintf(stderr,
+                "Uso: %s [-tokens|-ast|-sema] arquivo.c\n"
+                "  -tokens  imprime lista de tokens\n"
+                "  -ast     imprime AST (prefix)\n"
+                "  -sema    roda análise semântica (padrão)\n",
+                argv[0]);
         return 1;
     }
+    if (!mode_tokens && !mode_ast)
+        mode_sema = 1; /* default */
 
-    // 1) Leitura do arquivo (usa read_file de lexer.c)
-    char *src = read_file(argv[2]);
-    if (!src)
-    {
-        perror("read_file");
-        return 1;
-    }
-
-    // 2) Tokenização
+    /* 1) leitura & tokenização */
+    char *src = read_file(path);
     Token *toks = tokenize(src);
-    if (!toks)
-    {
-        fprintf(stderr, "Erro no lexer\n");
+    if (!toks){
+        fprintf(stderr, "lexer falhou\n");
         free(src);
         return 1;
     }
 
-    // 3) Escolha de modo
-    if (strcmp(argv[1], "-tokens") == 0)
-    {
+    if (mode_tokens){ /* só imprime tokens */
         print_tokens(toks);
-    }
-    else
-    {
-        Node *root = parse_program(toks);
-        print_ast(root, 0);
-        free_node(root);
+        free_tokens(toks);
+        free(src);
+        return 0;
     }
 
-    // 4) Cleanup
+    /* 2) parsing */
+    Node *ast = parse_program(toks);
+    if (mode_ast){ /* imprime AST e termina */
+        print_ast(ast, 0);
+        free_node(ast);
+        free_tokens(toks);
+        free(src);
+        return 0;
+    }
+
+    /* 3) semântica */
+    SemaContext sema;
+    sema_init(&sema);
+    if (sema_analyze(&sema, ast) != SEMA_OK){
+        fprintf(stderr, "Compilação abortada: erros semânticos\n");
+        free_node(ast);
+        free_tokens(toks);
+        free(src);
+        return 1;
+    }
+    printf("✓ Semântica OK\n");
+
+    /* 4) cleanup geral */
+    free_node(ast);
     free_tokens(toks);
     free(src);
     return 0;
