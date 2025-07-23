@@ -3,9 +3,6 @@
 
 #include "token.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 // Lê todo o arquivo em memória; quem chamar deve liberar o retorno
 char *read_file(const char *path);
@@ -22,8 +19,5 @@ void print_tokens(Token *tokens);
 // Libera o vetor de tokens e cada lexema alocado
 void free_tokens(Token *tokens);
 
-#ifdef __cplusplus
-}
-#endif
 
 #endif // LEXER_H

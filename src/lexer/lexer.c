@@ -62,10 +62,10 @@ static Token *tokenize_buffer(const char *p) {
     #define EMIT(kind, start, l) do {                                         \
         if (len+1 >= cap) { cap *= 2;                                         \
             tokens = realloc(tokens, cap * sizeof(Token));                    \
-            if (!tokens) { perror("realloc"); exit(1); }                    \
+            if (!tokens) { perror("realloc"); exit(1); }                      \
         }                                                                     \
         char *lex = malloc((l) + 1);                                          \
-        if (!lex) { perror("malloc"); exit(1); }                            \
+        if (!lex) { perror("malloc"); exit(1); }                              \
         memcpy(lex, start, (l));                                              \
         lex[(l)] = '\0';                                                      \
         tokens[len++] = (Token){kind, lex, l, line, col,                      \
@@ -99,12 +99,12 @@ static Token *tokenize_buffer(const char *p) {
             EMIT(TK_NUM, start, p-start);
             continue;
         }
-        if (p[0]=='='&&p[1]=='=') { EMIT(TK_EQ,p,2); p+=2; continue; }
-        if (p[0]=='!'&&p[1]=='=') { EMIT(TK_NEQ,p,2); p+=2; continue; }
-        if (p[0]=='<'&&p[1]=='=') { EMIT(TK_LE,p,2); p+=2; continue; }
-        if (p[0]=='>'&&p[1]=='=') { EMIT(TK_GE,p,2); p+=2; continue; }
-        if (p[0]=='&'&&p[1]=='&') { EMIT(TK_AND,p,2); p+=2; continue; }
-        if (p[0]=='|'&&p[1]=='|') { EMIT(TK_OR,p,2); p+=2; continue; }
+        if (p[0]=='=' && p[1]=='=') { EMIT(TK_EQ,p,2); p+=2; continue; }
+        if (p[0]=='!' && p[1]=='=') { EMIT(TK_NEQ,p,2); p+=2; continue; }
+        if (p[0]=='<' && p[1]=='=') { EMIT(TK_LE,p,2); p+=2; continue; }
+        if (p[0]=='>' && p[1]=='=') { EMIT(TK_GE,p,2); p+=2; continue; }
+        if (p[0]=='&' && p[1]=='&') { EMIT(TK_AND,p,2); p+=2; continue; }
+        if (p[0]=='|' && p[1]=='|') { EMIT(TK_OR,p,2); p+=2; continue; }
         if (p[0]=='+' && p[1]=='+') { EMIT(TK_INC, p, 2); p+=2; continue; }
         if (p[0]=='-' && p[1]=='-') { EMIT(TK_DEC, p, 2); p+=2; continue; }
         TokenKind sk;
@@ -112,6 +112,7 @@ static Token *tokenize_buffer(const char *p) {
             case '+': sk = TK_SYM_PLUS;   break;
             case '-': sk = TK_SYM_MINUS;  break;
             case '*': sk = TK_SYM_STAR;   break;
+            case '&': sk = TK_SYM_AMP;    break;
             case '/': sk = TK_SYM_SLASH;  break;
             case ';': sk = TK_SYM_SEMI;   break;
             case ',': sk = TK_SYM_COMMA;  break;

@@ -42,6 +42,14 @@ static Token *expect(TokenKind kind) {
     return next();
 }
 
+// conta '*' consecutivos; avança o cursor, devolve quantos
+static int count_stars(void) {
+    int n = 0;
+    while (consume(TK_SYM_STAR))
+        n++;
+    return n;
+}
+
 // AST node constructors
 // AST node constructors (recebem Token *tok para localização)
 static Node *new_node(Token *tok, NodeKind kind) {
@@ -177,21 +185,42 @@ static Node *parse_postfix(void) {
 
 // Unary: +, -, !, then primary
 static Node *parse_unary(void) {
-    // +expr  => just skip '+'
+
+    /* &expr : operador de endereço */
+    if (peek(0)->kind == TK_SYM_AMP) {
+        Token *tok = next();              // consome '&'
+        Node  *sub = parse_unary();       // avalia o operando recursivamente
+        Node  *n   = new_node_unary(tok, ND_ADDR, sub);
+        /* type será ajustado no Sema; se quiser já adiantar: */
+        /* n->type = pointer_to(sub->type); */
+        return n;
+    }
+
+    /* *expr : operador de dereferência */
+    if (peek(0)->kind == TK_SYM_STAR) {
+        Token *tok = next();              // consome '*'
+        Node  *sub = parse_unary();
+        Node  *n   = new_node_unary(tok, ND_DEREF, sub);
+        /* Deixe n->type = NULL; o Sema checará se sub->type é ponteiro
+           e então fará n->type = sub->type->base */
+        return n;
+    }
+
+    /* +expr : apenas ignora o '+' */
     if (peek(0)->kind == TK_SYM_PLUS) {
-        next();  // consome '+'
+        next();                           // consome '+'
         return parse_unary();
     }
-    // -expr  => 0 - expr
+
+    /* -expr : transforma em 0 - expr */
     if (peek(0)->kind == TK_SYM_MINUS) {
-        Token *tok = next();  // consome '-'
-        // cria literal zero usando o mesmo token (linha/col do '-')
-        Node *zero = new_node_num(tok);
-        zero->val = 0;
-        // constroi subtração 0 - parse_unary()
+        Token *tok = next();              // consome '-'
+        Node *zero = new_node_num(tok);   // literal 0 com mesmo token
+        zero->val  = 0;
         return new_node_binary(tok, ND_SUB, zero, parse_unary());
     }
-    // caso geral
+
+    /* caso geral → postfix / primary */
     return parse_postfix();
 }
 
@@ -398,6 +427,7 @@ static Node *parse_statement(void) {
             if (peek(0)->kind == TK_KW_INT) {
                 // Token *idt = next();    // consome 'int'
                 next();    // consome 'int'
+                int stars = count_stars(); 
                 Token *id  = expect(TK_IDENT);
                 init = new_node(id, ND_DECL);
                 init->name = copy_str(id->lexeme);
@@ -441,9 +471,10 @@ static Node *parse_statement(void) {
         Node **decls = NULL;
         int    cnt   = 0;
         do {
-            Token *id = expect(TK_IDENT);
-            Node  *n  = new_node(id, ND_DECL);
-            n->name   = copy_str(id->lexeme);
+            int   stars = count_stars();
+            Token *id   = expect(TK_IDENT);
+            Node *n = new_node(id, ND_DECL);
+            n->name = copy_str(id->lexeme);
             if (peek(0)->kind == TK_SYM_ASSIGN) {
                 next();                  // consome '='
                 n->init = parse_expression();
@@ -555,6 +586,7 @@ static Node *parse_function_decl(void) {
         do {
             // cada parâmetro começa com 'int'
             expect(TK_KW_INT);
+            int stars = count_stars();
             // nome do parâmetro
             Token *pt = expect(TK_IDENT);
             // cria nó ND_VAR para o parâmetro, usando o token do identificador

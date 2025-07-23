@@ -7,7 +7,7 @@
 #define SEMA_H
 
 #include "../parser/parser.h"   // Definição de Node, NodeKind e FunctionDecl
-#include "type.h"            // Definição de Type em include/
+#include "type.h"       // Definição de Type em include/
 #include <stdbool.h>
 
 // Tipo de erro semântico
