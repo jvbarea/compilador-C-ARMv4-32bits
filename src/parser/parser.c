@@ -3,6 +3,7 @@
 #include <string.h>
 #include "parser.h"
 #include "../lexer/lexer.h"
+#include "type.h"
 
 // Token stream pointer
 static Token *cur;
@@ -56,6 +57,7 @@ static Node *new_node(Token *tok, NodeKind kind) {
     Node *node = calloc(1, sizeof(Node));
     node->kind  = kind;
     node->token = tok;
+    node->type  = NULL;
     return node;
 }
 
@@ -147,6 +149,9 @@ static Node *parse_primary(void) {
                 expect(TK_SYM_RPAREN);
             }
             Node *call = new_node_call(tok ,name, args, argc);
+            Node *func_var  = new_node_var(tok);  // ND_VAR “add”
+            func_var->token = tok;                // localização
+            call->lhs       = func_var;           // <- ponto-chave
             call->token = tok;
             return call;
         }
@@ -426,15 +431,21 @@ static Node *parse_statement(void) {
         if (peek(0)->kind != TK_SYM_SEMI) {
             if (peek(0)->kind == TK_KW_INT) {
                 // Token *idt = next();    // consome 'int'
-                next();    // consome 'int'
-                int stars = count_stars(); 
-                Token *id  = expect(TK_IDENT);
-                init = new_node(id, ND_DECL);
-                init->name = copy_str(id->lexeme);
+                next();
+                int   stars = count_stars();
+                Token *id   = expect(TK_IDENT);
+                /* constrói Type* */
+                Type *ty = ty_int;
+                for (int i = 0; i < stars; i++)
+                    ty = pointer_to(ty);
+                Node *n  = new_node(id, ND_DECL);
+                n->name = copy_str(id->lexeme);
+                n->type = ty;
                 if (peek(0)->kind == TK_SYM_ASSIGN) {
                     next();
-                    init->init = parse_expression();
+                    n->init = parse_expression();
                 }
+                init = n;
             } else {
                 init = parse_expression();
             }
@@ -471,10 +482,17 @@ static Node *parse_statement(void) {
         Node **decls = NULL;
         int    cnt   = 0;
         do {
+            // 1) conta ponteiros igual ao global
             int   stars = count_stars();
-            Token *id   = expect(TK_IDENT);
-            Node *n = new_node(id, ND_DECL);
+            Type *ty    = ty_int;
+            for (int i = 0; i < stars; i++)
+                ty = pointer_to(ty);
+
+            // 2) jogador de identificador
+            Token *id = expect(TK_IDENT);
+            Node *n  = new_node(id, ND_DECL);
             n->name = copy_str(id->lexeme);
+            n->type = ty;                // <-- atribui o tipo
             if (peek(0)->kind == TK_SYM_ASSIGN) {
                 next();                  // consome '='
                 n->init = parse_expression();
@@ -547,13 +565,16 @@ static Node *parse_compound(void) {
 static Node *parse_global_decl(void) {
     // consome 'int' (token não usado para localização da declaração em si)
     expect(TK_KW_INT);
-
-    // nome da variável global
-    Token *id = expect(TK_IDENT);
-
-    // cria nó de declaração usando o token do identificador
-    Node *n = new_node(id, ND_DECL);
-    n->name = copy_str(id->lexeme);
+    // conta quantos '*' para tipos de ponteiro
+    int stars    = count_stars();
+    Token *id    = expect(TK_IDENT);
+    // constrói o Type*: começa em int, envolve tantos ponteiros quanto 'stars'
+    Type *ty     = ty_int;
+    for (int i = 0; i < stars; i++)
+        ty = pointer_to(ty);
+    Node *n      = new_node(id, ND_DECL);
+    n->type      = ty;                     // <–– atribui o tipo ao nó
+    n->name      = copy_str(id->lexeme);
 
     // inicializador opcional: = expr
     if (peek(0)->kind == TK_SYM_ASSIGN) {
@@ -571,7 +592,12 @@ static Node *parse_global_decl(void) {
 static Node *parse_function_decl(void) {
     // 1) palavra-chave 'int'
     // Token *tok_int = expect(TK_KW_INT);
+    /* tipo de retorno: int , int* , … */
     expect(TK_KW_INT);
+    int   ret_stars = count_stars();
+    Type *ret_ty    = ty_int;
+    for (int i = 0; i < ret_stars; i++)
+        ret_ty = pointer_to(ret_ty);
 
     // 2) nome da função
     Token *fn = expect(TK_IDENT);
@@ -590,8 +616,13 @@ static Node *parse_function_decl(void) {
             // nome do parâmetro
             Token *pt = expect(TK_IDENT);
             // cria nó ND_VAR para o parâmetro, usando o token do identificador
-            Node *p = new_node(pt, ND_VAR);
-            p->name = copy_str(pt->lexeme);
+            Type *pty = ty_int;
+            for (int i = 0; i < stars; i++)
+                pty = pointer_to(pty);
+
+            Node *p  = new_node(pt, ND_VAR);
+            p->name  = copy_str(pt->lexeme);
+            p->type  = pty;
 
             params = realloc(params, sizeof(Node*) * (pcount + 1));
             params[pcount++] = p;
@@ -609,10 +640,15 @@ static Node *parse_function_decl(void) {
     fnode->args       = params;
     fnode->arg_count  = pcount;
     // reaproveita statements do bloco interno
+    /* monta o Type* da função */
+    Type **ptypes = malloc(sizeof(Type*) * pcount);
+    for (int i = 0; i < pcount; i++)
+        ptypes[i] = params[i]->type;
+    fnode->type = func_type(ret_ty, ptypes, pcount);
+
     fnode->stmts      = body->stmts;
     fnode->stmt_count = body->stmt_count;
     free(body);
-
     return fnode;
 }
 

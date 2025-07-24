@@ -2,6 +2,7 @@
 #define PARSER_H
 
 #include "../lexer/lexer.h"
+#include "type.h"
 
 // Grammar (BNF):
 // program        ::= (function_decl | global_decl)*
@@ -32,7 +33,7 @@
 
 // AST Node kinds
 typedef enum {
-    ND_ADD, ND_SUB, ND_MUL, ND_DIV,ND_LOGAND, ND_LOGOR,
+    ND_ADD, ND_SUB, ND_MUL, ND_DIV, ND_LOGAND, ND_LOGOR,
     ND_EQ, ND_NE, ND_LT, ND_LE,
     ND_ASSIGN, ND_VAR, ND_NUM, ND_DEREF, ND_ADDR,
     ND_RETURN, ND_IF, ND_WHILE, ND_FOR,
@@ -44,6 +45,7 @@ typedef enum {
 typedef struct Node {
     NodeKind kind;
     Token *token;
+    Type *type;               // tipo do nó, usado para semântica
     struct Node *lhs;         // left-hand side or condition
     struct Node *rhs;         // right-hand side or then-branch
     struct Node *els;         // else-branch

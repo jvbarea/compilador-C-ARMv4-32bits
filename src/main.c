@@ -115,6 +115,17 @@ static void print_ast(Node *n, int indent)
         for (int i = 0; i < n->stmt_count; i++)
             print_ast(n->stmts[i], indent + 2);
         break;
+    case ND_ADDR:
+        printf("(&\n");
+        print_ast(n->lhs, indent + 2);
+        // printf(")\n");
+        break;
+
+    case ND_DEREF:
+        printf("(*\n");
+        print_ast(n->lhs, indent + 2);
+        // printf(")\n");
+        break;
     default:
         printf("(UNKNOWN %d)\n", n->kind);
     }
@@ -128,6 +139,7 @@ static void print_ast(Node *n, int indent)
 
 int main(int argc, char **argv)
 {
+    init_types();
     /* opções */
     int mode_tokens = 0, mode_ast = 0, mode_sema = 0;
     char *path = NULL;
