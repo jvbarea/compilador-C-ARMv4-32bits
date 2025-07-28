@@ -4,6 +4,7 @@
 #include "lexer/lexer.h"   // já declara read_file, tokenize, print_tokens, free_tokens
 #include "parser/parser.h" // declara parse_program, free_node, Node, etc.
 #include "sema/sema.h"     // sema_analyze, SemaContext
+#include "code_generator/code_generator.h"
 
 // Imprime AST em formato prefixado
 static void print_ast(Node *n, int indent)
@@ -141,7 +142,7 @@ int main(int argc, char **argv)
 {
     init_types();
     /* opções */
-    int mode_tokens = 0, mode_ast = 0, mode_sema = 0;
+    int mode_tokens = 0, mode_ast = 0, mode_sema = 0, mode_codegen = 0;
     char *path = NULL;
 
     for (int i = 1; i < argc; i++){
@@ -151,19 +152,22 @@ int main(int argc, char **argv)
             mode_ast = 1;
         else if (!strcmp(argv[i], "-sema"))
             mode_sema = 1;
+        else if (!strcmp(argv[i], "-S"))
+            mode_codegen = 1;
         else
             path = argv[i];
     }
-    if (!path || (mode_tokens + mode_ast + mode_sema) > 1){
+    if (!path || (mode_tokens + mode_ast + mode_sema + mode_codegen) > 1){
         fprintf(stderr,
-                "Uso: %s [-tokens|-ast|-sema] arquivo.c\n"
+                "Uso: %s [-tokens|-ast|-sema|-S] arquivo.c\n"
                 "  -tokens  imprime lista de tokens\n"
                 "  -ast     imprime AST (prefix)\n"
-                "  -sema    roda análise semântica (padrão)\n",
+                "  -sema    roda análise semântica (padrão)\n"
+                "  -S       gera código assembly\n",
                 argv[0]);
         return 1;
     }
-    if (!mode_tokens && !mode_ast)
+    if (!mode_tokens && !mode_ast && !mode_codegen)
         mode_sema = 1; /* default */
 
     /* 1) leitura & tokenização */
@@ -203,6 +207,13 @@ int main(int argc, char **argv)
         return 1;
     }
     printf("✓ Semântica OK\n");
+
+    if (mode_codegen) {
+        char out_file[256];
+        snprintf(out_file, sizeof out_file, "%s.s", path);
+        codegen_to_file(ast, out_file);
+        printf("Assembly salvo em %s\n", out_file);
+    }
 
     /* 4) cleanup geral */
     free_node(ast);
