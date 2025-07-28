@@ -5,6 +5,7 @@ SRC_TYPE  = src/type/type.c
 SRC_PRSR  = src/parser/parser.c
 SRC_SEMA  = src/sema/sema.c
 SRC_MAIN  = src/main.c
+SRC_CODEGEN = src/code_generator/code_generator.c
 
 
 OBJ_LEX   = $(SRC_LEX:.c=.o)
@@ -12,8 +13,8 @@ OBJ_TYPE  = $(SRC_TYPE:.c=.o)
 OBJ_PRSR  = $(SRC_PRSR:.c=.o)
 OBJ_SEMA  = $(SRC_SEMA:.c=.o)
 OBJ_MAIN  = $(SRC_MAIN:.c=.o)
-
-mycc: $(OBJ_LEX) $(OBJ_PRSR) $(OBJ_SEMA) $(OBJ_TYPE) $(OBJ_MAIN)
+OBJ_CODEGEN = $(SRC_CODEGEN:.c=.o)
+mycc: $(OBJ_LEX) $(OBJ_PRSR) $(OBJ_SEMA) $(OBJ_TYPE) $(OBJ_CODEGEN) $(OBJ_MAIN)
 	$(CC) $^ -o $@
 
 %.o: %.c
@@ -21,8 +22,7 @@ mycc: $(OBJ_LEX) $(OBJ_PRSR) $(OBJ_SEMA) $(OBJ_TYPE) $(OBJ_MAIN)
 
 .PHONY: clean test
 clean:
-	rm -f src/lexer/*.o src/parser/*.o src/sema/*.o src/main.o tests/parser/*.got.ast tests/sema/*.got.err mycc 
-
+	rm -f src/lexer/*.o src/parser/*.o src/sema/*.o src/code_generator/*.o src/main.o tests/parser/*.got.ast tests/sema/*.got.err mycc
 # --------------------
 # Testes de lexer
 # --------------------

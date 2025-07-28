@@ -19,8 +19,8 @@ mycc/
 │   │   └── prec_table.inc     # precedência dos operadores
 │   ├── sema/
 │   │   ├── sema.c  sema.h     # análise semântica mínima
-│   ├── codegen/
-│   │   ├── codegen.c codegen.h
+│   ├── code_generator/
+│   │   ├── code_generator.c code_generator.h
 │   └── main.c                 # parse flags, orquestra fases
 ├── samples/
 │   ├── fib.c
@@ -28,7 +28,8 @@ mycc/
 └── tests/
     ├── lexer/
     ├── parser/
-    └── full/
+    ├── sema/
+    └── code_gen/
 
 ![alt text](ibagens/Invest_Plan___Mermaid_Chart-2025-07-21-140609[1].png )
 
