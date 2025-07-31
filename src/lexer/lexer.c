@@ -89,6 +89,7 @@ static Token *tokenize_buffer(const char *p) {
             else if (l==4 && !memcmp(start,"else",4)) k=TK_KW_ELSE;
             else if (l==5 && !memcmp(start,"while",5)) k=TK_KW_WHILE;
             else if (l==3 && !memcmp(start,"for",3)) k=TK_KW_FOR;
+            else if (l==4 && !memcmp(start,"void",4)) k = TK_KW_VOID;
             EMIT(k, start, l);
             continue;
         }

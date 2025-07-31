@@ -113,13 +113,13 @@ static void check_binary_int(SemaContext *ctx, Node *node) {
 
 SemaErrorCode sema_analyze(SemaContext *ctx, Node *root) {
     if (!root) return SEMA_OK;
-    if (root && root->token) {
-        fprintf(stderr,
-                "[sema] visiting kind=%d at %d:%d\n",
-                root->kind,
-                root->token->line,
-                root->token->col);
-    }
+    // if (root && root->token) {
+    //     fprintf(stderr,
+    //             "[sema] visiting kind=%d at %d:%d\n",
+    //             root->kind,
+    //             root->token->line,
+    //             root->token->col);
+    // }
     switch (root->kind) {
 
     case ND_BLOCK:

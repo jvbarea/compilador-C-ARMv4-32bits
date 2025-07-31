@@ -1,9 +1,11 @@
-int add(int a, int b) {
+int __attribute__((naked)) add(int a, int b)
+{
     return a + b;
 }
 
-int main() {
+int __attribute__((naked)) main()
+{
     int a = 1, b = 4;
-    int c = add(b + 1, 5);
-    return a + c;
+    int c = add(a, b);
+    return c;
 }
