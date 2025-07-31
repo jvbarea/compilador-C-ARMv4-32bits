@@ -1,31 +1,57 @@
-.SUFFIXES:
+###############################################################################
+.SUFFIXES:                         # desativa regras implícitas do GNU make
 
-PREFIX  ?= arm-none-eabi-
-CC      := $(PREFIX)gcc
-MYCC    := ../../mycc
-QEMU    ?= qemu-system-arm
-GDB     ?= gdb-multiarch
-LDS     := linker.ld
+# — Ferramentas --------------------------------------------------------------
+PREFIX   ?= arm-none-eabi-
+CC       := $(PREFIX)gcc
+MYCC     := ../../mycc              # seu compilador -> .s
+QEMU     ?= qemu-system-arm
+GDB      ?= gdb-multiarch
+LDS      := linker.ld
 
-CFLAGS  := -mcpu=arm7tdmi -marm -nostdlib -Og
-LDFLAGS := -T $(LDS)
-QEMUFLAGS = -M virt -nographic -semihosting
+CFLAGS    = -mcpu=arm7tdmi -marm -nostdlib -Og
+LDFLAGS   = -T $(LDS)
+QEMUFLAGS = -M virt -nographic -semihosting        # captura SWI 0x123456
 
-# -------- pipeline -----------------------------------------
-%.s   : %.c $(MYCC)          ; $(MYCC) -S $< > $@
-%.elf : %.s $(LDS)           ; $(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
-%.run : %.elf                ; $(QEMU) $(QEMUFLAGS) -kernel $< ; echo "exit=$$?"
-%.dbg : %.elf                ; $(QEMU) $(QEMUFLAGS) -S -gdb tcp::1234 -kernel $< & \
-                               sleep 0.5 ; $(GDB) -q $< -ex "target remote :1234" \
-                               -ex "monitor system_reset" -ex "tui enable"
+# — 1)  .c  →  .s ------------------------------------------------------------
+%.s : %.c $(MYCC)
+	@echo "🛠  [asm] $< → $@"
+	$(MYCC) -S $< > $@
 
-# -------- metas de conveniência -----------------------------
-FILES ?= $(basename $(filter %.c,$(MAKECMDGOALS)))
+# — 2)  .s  →  .elf ----------------------------------------------------------
+%.elf : %.s $(LDS)
+	@echo "🛠  [link] $< → $@"
+	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
+
+# — 3)  executa --------------------------------------------------------------
+%.run : %.elf
+	@echo "▶️   Executando $< …"
+	@$(QEMU) $(QEMUFLAGS) -kernel $< ; echo "📤 exit=$$?"
+
+# — 4)  depuração (QEMU + GDB) ----------------------------------------------
+%.gdb : %.elf
+	@echo "🛠  Debug: abrindo QEMU + GDB"
+	@$(QEMU) $(QEMUFLAGS) -S -gdb tcp::1234 -kernel $< & \
+	  qpid=$$! ; sleep 0.5 ; \
+	  $(GDB) -q $< \
+	    -ex "target remote :1234" \
+        -ex "load" \
+	    -ex "monitor system_reset" \
+	    -ex "tui enable" ; \
+	  kill $$qpid >/dev/null 2>&1 || true
+
+# —–––– metas de conveniência —–––––––––––––––––––––––––––––––––––––––––––––––
+# Arquivos .c passados na linha de comando, + os vindos via FILES=
+FILES := $(basename $(filter %.c,$(MAKECMDGOALS))) $(FILES)
+
+.PHONY: run gdb clean
 
 run: $(addsuffix .run,$(FILES))
-dbg: $(addsuffix .dbg,$(FILES))
+gdb: $(addsuffix .gdb,$(FILES))
 
-clean: ; rm -f *.s *.elf
+# Evita que foo.c vire “target” a construir
+$(FILES:%=%.c):
 
-# Evita que foo.c seja tratado como alvo a construir
-$(FILES): ;
+clean:
+	rm -f *.s *.elf
+###############################################################################
