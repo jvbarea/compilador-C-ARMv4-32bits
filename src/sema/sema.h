@@ -40,6 +40,8 @@ typedef struct SemaScope {
 typedef struct {
     SemaScope *current_scope;
     bool error_reported;
+    Type      *current_ret;     /* tipo de retorno da função visitada   */
+    int        next_offset;     /* offset acumulado para locals (neg.)  */
 } SemaContext;
 
 // Inicializa o contexto (chamar no início da compilação)

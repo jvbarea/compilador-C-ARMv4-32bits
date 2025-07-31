@@ -4,6 +4,7 @@ SRC_LEX   = src/lexer/lexer.c
 SRC_TYPE  = src/type/type.c
 SRC_PRSR  = src/parser/parser.c
 SRC_SEMA  = src/sema/sema.c
+SRC_CGEN  = src/code_generator/code_generator.c
 SRC_MAIN  = src/main.c
 
 
@@ -11,17 +12,25 @@ OBJ_LEX   = $(SRC_LEX:.c=.o)
 OBJ_TYPE  = $(SRC_TYPE:.c=.o)
 OBJ_PRSR  = $(SRC_PRSR:.c=.o)
 OBJ_SEMA  = $(SRC_SEMA:.c=.o)
+OBJ_CGEN  = $(SRC_CGEN:.c=.o)
 OBJ_MAIN  = $(SRC_MAIN:.c=.o)
 
-mycc: $(OBJ_LEX) $(OBJ_PRSR) $(OBJ_SEMA) $(OBJ_TYPE) $(OBJ_MAIN)
+mycc: $(OBJ_LEX) $(OBJ_PRSR) $(OBJ_SEMA) $(OBJ_TYPE) $(OBJ_CGEN) $(OBJ_MAIN)
 	$(CC) $^ -o $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+
+# --------------------------------------------------
+#  regra genérica: gera test1.s a partir de test1.c
+# --------------------------------------------------
+%.s: %.c mycc
+	./mycc -S $< > $@
+
 .PHONY: clean test
 clean:
-	rm -f src/lexer/*.o src/parser/*.o src/sema/*.o src/main.o tests/parser/*.got.ast tests/sema/*.got.err mycc 
+	rm -f src/lexer/*.o src/type/*.o src/parser/*.o src/sema/*.o src/code_generator/*.o src/main.o tests/parser/*.got.ast tests/sema/*.got.err mycc 
 
 # --------------------
 # Testes de lexer
@@ -43,11 +52,6 @@ test-parser: mycc
 # Testes de semantica
 # --------------------
 test-sema: mycc
-# 	@for f in tests/sema/*.c ; do \
-# 	   printf "== Sema $$f ==\n"; \
-# 	   ./mycc -sema $$f >/dev/null 2>&1 && echo OK || echo "ERRO detectado"; \
-# 	 done
-test-sema: mycc
 	@for f in tests/sema/*.c; do \
 	    base=$$(basename $$f .c); \
 	    out=tests/sema/$$base.got.err; \
@@ -61,6 +65,16 @@ test-sema: mycc
 	    fi; \
 	    echo ; \
 	done
+ # --------------------
+ # Testes de Code Generation
+ # --------------------
+ test-cgen: mycc
+	@for f in tests/code_generator/*.c; do \
+	    echo "== ASM $$f =="; \
+	    asm=$${f%.c}.got;      \
+	    ./mycc -S $$f > $$asm;    \
+	    cat $$asm;                \
+ 	done
 
 # alias “test” para rodar tudo
-test: test-lexer test-parser test-sema
+test: test-lexer test-parser test-sema test-cgen

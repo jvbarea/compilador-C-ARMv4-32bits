@@ -6,6 +6,7 @@
 typedef enum {
     TK_EOF = 0,
     TK_KW_INT,
+    TK_KW_VOID,
     TK_KW_RETURN,
     TK_KW_CHAR,
     TK_KW_IF,
