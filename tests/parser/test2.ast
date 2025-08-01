@@ -1,0 +1,24 @@
+(BLOCK
+  (FUNC main
+    (DECL a
+      (NUM 5)
+    )
+    (DECL b
+      (NUM 10)
+    )
+    (IF
+      (LT
+        (VAR a)
+        (VAR b)
+      )
+      (RETURN
+        (VAR a)
+      )
+      (ELSE
+        (RETURN
+          (VAR b)
+        )
+      )
+    )
+  )
+)

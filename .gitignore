@@ -1,0 +1,19 @@
+# Executables
+*.exe
+*.out
+*.bin
+a.out
+
+# Object files
+*.o
+*.obj
+
+# Testes
+*.got.ast
+*.got.err
+
+# Ignore .vscode directory
+.vscode/
+
+*.elf
+*.got

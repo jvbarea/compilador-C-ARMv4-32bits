@@ -1,0 +1,23 @@
+(BLOCK
+  (FUNC main
+    (DECL i
+      (NUM 0)
+    )
+    (WHILE
+      (LE
+        (VAR i)
+        (NUM 10)
+      )
+      (ASSIGN
+        (VAR i)
+        (ADD
+          (VAR i)
+          (NUM 1)
+        )
+      )
+    )
+    (RETURN
+      (VAR i)
+    )
+  )
+)
