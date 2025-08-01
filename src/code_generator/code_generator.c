@@ -325,9 +325,11 @@ void codegen_to_file(Node *root, const char *out_path) {
         ".text\n"
         ".global _start\n"
         "_start:\n"
+        "    ldr sp, =_stack_top   @ pilha = topo reservado no linker\n"
         "    bl  main          @ chama main()\n"
         "    mov r7, #0x18     @ SYS_EXIT\n"
-        "    swi 0x123456 \n\n");
+        "    svc 0x123456 \n\n");
+        // "    swi 0xbb \n\n");
 
     /* globals */
     int has_glob = 0;
