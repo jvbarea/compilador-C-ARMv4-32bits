@@ -1,52 +1,71 @@
-# compilador-C-ARMv4-32bits
+# Compilador C para ARMv4-32bits
 
+Este repositório contém um pequeno compilador escrito em C capaz de traduzir um subconjunto da linguagem C para assembly ARMv4 de 32 bits. O projeto serve de base para estudos de construção de compiladores e está dividido em módulos bem definidos.
+
+## Etapas da compilação
+
+1. **Análise léxica** (`src/lexer`)
+   - Percorre o arquivo fonte completo em memória e converte caracteres em *tokens*.
+   - Remove comentários e espaços em branco e classifica palavras‑chave, identificadores, literais e símbolos.
+2. **Análise sintática** (`src/parser`)
+   - Consome a lista de tokens e constrói uma **Árvore de Sintaxe Abstrata (AST)** por meio de parser preditivo recursivo.
+   - Reconhece declarações de funções, variáveis globais e comandos como `if`, `while` e `for`.
+3. **Análise semântica** (`src/sema`)
+   - Percorre a AST, mantém tabelas de símbolos para variáveis e funções e valida tipos e escopos.
+   - Emite mensagens de erro detalhadas caso encontre uso de identificadores não declarados ou tipos incompatíveis.
+4. **Geração de código** (`src/code_generator`)
+   - Converte a AST anotada em assembly ARM.  Cada função recebe prólogo e epílogo fixos e são utilizados no máximo quatro registradores, com *spilling* na pilha quando necessário.
+
+A etapa de geração ainda está em evolução, mas já produz `.s` para programas simples.
+
+## Estrutura do repositório
+
+```
 mycc/
-├── Makefile
-├── README.md
-├── include/
-│   ├── token.h          # enum TokenKind, struct Token, prototypes do lexer
-│   └── stubs.h          # protótipos manuais: malloc, printf, etc.
-├── src/
-│   ├── common/
-│   │   ├── arena.c  arena.h   # alocador de arena
-│   │   └── util.c   util.h    # helpers (string view, array dyn…)
-│   ├── lexer/
-│   │   ├── lexer.c  lexer.h   # `Token *tokenize(const char *src)`
-│   │   └── keywords.inc       # tabela gerada/estática de palavras‑chave
-│   ├── parser/
-│   │   ├── parser.c parser.h
-│   │   ├── ast.c ast.h        # Node estrutura + factory helpers
-│   │   └── prec_table.inc     # precedência dos operadores
-│   ├── sema/
-│   │   ├── sema.c  sema.h     # análise semântica mínima
-│   ├── codegen/
-│   │   ├── codegen.c codegen.h
-│   └── main.c                 # parse flags, orquestra fases
-├── samples/
-│   ├── fib.c
-│   └── sorts.c
-└── tests/
-    ├── lexer/
-    ├── parser/
-    └── full/
+├── Makefile               # regras para compilar o compilador e executar testes
+├── include/               # cabeçalhos públicos
+│   ├── token.h            # definição de Token e enum TokenKind
+│   └── stubs.h            # protótipos auxiliares (malloc, printf…)
+├── src/                   # código-fonte do compilador
+│   ├── lexer/             # analisador léxico
+│   ├── parser/            # parser e estruturas de AST
+│   ├── sema/              # analisador semântico
+│   ├── code_generator/    # gerador de assembly
+│   └── main.c             # programa principal que orquestra as fases
+└── tests/                 # casos de teste de cada etapa
+```
 
-![alt text](ibagens/Invest_Plan___Mermaid_Chart-2025-07-21-140609[1].png )
+## Uso
+
+Compile o executável `mycc` com `make`:
 
 ```
-./prog; echo $? |
+$ make
+```
 
----
-
-### 5 ▪ Checklist de “mínimo para rodar”
-
-- [ ] Lexer reconhece todos tokens necessários (`return`, `int`, `char`, `;`, `{`, `}`, `(`, `)`, `+ - * / == != <= >= < > = , &`).
-- [ ] Suporte a literais inteiros (`123`, `0xFF`) e char (`'a'`, `'\n'`).
-- [ ] Parser entende declarações `int x;`, `int f(int) { … }` e corpo com `if/while/for/return`.
-- [ ] Geração de prólogo/epílogo fixo: `stmfd sp!, {fp, lr}` / `ldmfd sp!, {fp, pc}`.
-- [ ] Alocação de no máximo 4 registradores ao mesmo tempo; spill simples (push/pop em SP) se precisar.
-- [ ] Emitir `.global main`, `.text`, `.data` se houver globais.
-- [ ] Script de teste que compila ➜ monta ➜ linka ➜ executa ➜ compara saída.
-
-Cumprindo todo o checklist você termina a **Fase 1** com um compilador “toy”, mas já capaz de gerar `.s` ARM para programas de referência. A partir daí fica muito mais fácil estender para structs/enums e partir para a auto-hospedagem na **Fase 2**. Boa codificação!
+Em seguida é possível executar cada fase de forma independente:
 
 ```
+./mycc -tokens arquivo.c   # imprime a lista de tokens
+./mycc -ast arquivo.c      # imprime a AST em formato prefixado
+./mycc -sema arquivo.c     # executa a análise semântica (padrão)
+./mycc -S arquivo.c        # gera assembly ARM no arquivo .s correspondente
+```
+
+Os scripts de teste em `tests/` automatizam a compilação de exemplos e a verificação de saída.
+
+## Objetivos da Fase 1
+
+O projeto está na **Fase 1**, cujo foco é ter um compilador mínimo que suporte:
+
+- Tipo `int` e literais inteiros ou de caractere.
+- Variáveis globais e locais, funções com até quatro argumentos.
+- Comandos `if/else`, `for`, `while` e `return`.
+- Geração de assembly com prólogo/epílogo fixo e uso de até quatro registradores.
+
+Concluída essa fase, a próxima etapa é ampliar a checagem de tipos (incluindo ponteiros) e evoluir o gerador de código.
+
+## Referências
+
+As implementações e explicações das fases de compilação foram baseadas em notas de aula e materiais sobre construção de compiladores. O arquivo `projeto.md` contém uma visão resumida das etapas planejadas.
+
