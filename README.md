@@ -56,7 +56,7 @@ Em seguida é necessário entrar na pasta /tests/code_generator e executar o Mak
 $ make gdb FILES=test1
 ```
 
-Em seguida é possível executar cada fase de forma independente:
+Tembém é possível executar cada fase de forma independente:
 
 ```
 ./mycc -tokens arquivo.c   # imprime a lista de tokens
