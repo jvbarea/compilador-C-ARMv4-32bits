@@ -41,6 +41,19 @@ Compile o executável `mycc` com `make`:
 
 ```
 $ make
+$ make test-lexer
+$ make test-parser
+$ make test-sema
+```
+
+Para os testes do Gerador de Código, o projeto precisa ser compilado inicialmente na raiz do projeto usando o make
+```
+$ make
+
+```
+Em seguida é necessário entrar na pasta /tests/code_generator e executar o Makefile
+```
+$ make gdb FILES=test1
 ```
 
 Em seguida é possível executar cada fase de forma independente:
